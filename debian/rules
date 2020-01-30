@@ -11,12 +11,8 @@ API_VERSION = 0.1
 
 DEB_HOST_ARCH := $(shell dpkg-architecture -qDEB_HOST_ARCH)
 
-CONFIGURE_COMMON_FLAGS = --disable-scrollkeeper --enable-introspection
-ifeq (,$(filter $(DEB_HOST_ARCH),amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64))
-  CONFIGURE_COMMON_FLAGS += --disable-mono-test
-else
-  dh_extra_args = ,cli
-endif
+CONFIGURE_COMMON_FLAGS = --enable-introspection
+
 CONFIGURE_FLAGS_gtk2 = --with-gtk=2 --enable-gtk-doc
 CONFIGURE_FLAGS_gtk3 = --with-gtk=3 --enable-gtk-doc=no
 
@@ -25,7 +21,7 @@ export DPKG_GENSYMBOLS_CHECK_LEVEL = 4
 CFLAGS += -fPIC
 
 %:
-	dh $@ --with autoreconf,python2,gir$(dh_extra_args)
+	dh $@ --with autoreconf,gir$(dh_extra_args)
 
 override_dh_autoreconf:
 	NOCONFIGURE=1 dh_autoreconf ./autogen.sh
@@ -35,24 +31,16 @@ override_dh_auto_configure: $(FLAVORS:%=doconfigure-%)
 doconfigure-%:
 	dh_auto_configure --builddirectory=build/$* -- $(CONFIGURE_FLAGS_$*) $(CONFIGURE_COMMON_FLAGS)
 
-doconfigure-gtk2: $(PY_VERSIONS:%=doconfiguregtk2-%)
-	# GTK2 flavor configure was run on a per-python-version basis.
-
 doconfiguregtk2-%:
-	PYTHON=`which $*` \
-		dh_auto_configure --builddirectory=build/gtk2 -- $(CONFIGURE_FLAGS_gtk2) $(CONFIGURE_COMMON_FLAGS)
+	dh_auto_configure --builddirectory=build/gtk2 -- $(CONFIGURE_FLAGS_gtk2) $(CONFIGURE_COMMON_FLAGS)
 
 override_dh_auto_build: $(FLAVORS:%=dobuild-%)
 
 dobuild-%:
 	dh_auto_build --builddirectory=build/$*
 
-dobuild-gtk2: $(PY_VERSIONS:%=dobuildgtk2-%)
-	# GTK2 flavor build was run on a per-python-version basis.
-
 dobuildgtk2-%:
-	PYTHON=`which $*` \
-		dh_auto_build --builddirectory=build/gtk2
+	dh_auto_build --builddirectory=build/gtk2
 
 override_dh_auto_install: $(FLAVORS:%=doinstall-%)
 
@@ -62,9 +50,7 @@ doinstall-%:
 override_dh_install:
 	find debian/tmp -name \*.la -exec rm {} \;
 	find debian/tmp -name \*.a -exec rm {} \;
-	rm -rf debian/tmp/*/usr/lib/mono
 	rm -rf debian/tmp/*/usr/share/vala/vapi/ayatana-appindicator*-0.1.deps
-	dh_install -ppython-ayatana-appindicator --fail-missing --sourcedir=debian/tmp/gtk2
 	dh_install -plibayatana-appindicator1 --fail-missing --sourcedir=debian/tmp/gtk2
 	dh_install -pgir1.2-ayatanaappindicator-0.1 --fail-missing --sourcedir=debian/tmp/gtk2
 	dh_install -plibayatana-appindicator-dev --fail-missing --sourcedir=debian/tmp/gtk2
@@ -72,10 +58,6 @@ override_dh_install:
 	dh_install -plibayatana-appindicator3-1 --fail-missing --sourcedir=debian/tmp/gtk3
 	dh_install -plibayatana-appindicator3-dev --fail-missing --sourcedir=debian/tmp/gtk3
 	dh_install -pgir1.2-ayatanaappindicator3-0.1 --fail-missing --sourcedir=debian/tmp/gtk3
-	if echo amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64 | grep -q $(DEB_HOST_ARCH); then \
-	    dh_install -plibayatana-appindicator0.1-cil --fail-missing --sourcedir=debian/tmp/gtk2; \
-	    dh_install -plibayatana-appindicator0.1-cil-dev --fail-missing --sourcedir=debian/tmp/gtk2; \
-	fi
 
 override_dh_auto_test: $(FLAVORS:%=dotest-%)
 
@@ -86,14 +68,9 @@ dotest-%:
 	if [ -e build/$*/tests/test-suite.log ]; then cat build/$*/tests/test-suite.log; fi
 	rm -Rf $(CURDIR)/debian/tmphome
 
-
-dotest-gtk2: $(PY_VERSIONS:%=dotestgtk2-%)
-	# GTK2 flavor test was run on a per-python-version basis.
-
 dotestgtk2-%:
 	mkdir -p $(CURDIR)/debian/tmphome
-	PYTHON=`which $*` \
-		HOME=$(CURDIR)/debian/tmphome dh_auto_test --builddirectory=build/gtk2 -- || true
+	HOME=$(CURDIR)/debian/tmphome dh_auto_test --builddirectory=build/gtk2 -- || true
 	# View test's log file for better debugging of problems when built in clean chroots.
 	if [ -e build/gtk2/tests/test-suite.log ]; then cat build/gtk2/tests/test-suite.log; fi
 	rm -Rf $(CURDIR)/debian/tmphome

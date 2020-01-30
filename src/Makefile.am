@@ -132,18 +132,12 @@ EXTRA_DIST += $(DBUS_SPECS)
 -include $(INTROSPECTION_MAKEFILE)
 INTROSPECTION_GIRS = 
 
-if INTROSPECTION_TEN
 INTROSPECTION_SCANNER_ARGS = \
 	--add-include-path=$(srcdir) \
 	$(addprefix --c-include=$(libayatana_appindicatorincludefolder)/, $(libayatana_appindicator_headers)) \
 	--symbol-prefix=app \
 	--identifier-prefix=App \
 	--warn-all
-else
-INTROSPECTION_SCANNER_ARGS = \
-	--add-include-path=$(srcdir) \
-	$(addprefix --c-include=$(libayatana_appindicatorincludefolder)/, $(libayatana_appindicator_headers))
-endif
 
 INTROSPECTION_COMPILER_ARGS = --includedir=$(builddir)
 

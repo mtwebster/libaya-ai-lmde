@@ -1,32 +1,24 @@
 Source: libayatana-appindicator
 Section: libs
 Priority: optional
-XS-Python-Version: all
 Maintainer: Mike Gabriel <mike.gabriel@das-netzwerkteam.de>
 Build-Depends: debhelper (>= 9),
                dh-autoreconf,
                dh-python,
                dpkg-dev (>= 1.16.1.1),
-               python-all-dev,
                at-spi2-core,
-               cli-common-dev (>= 0.8~) [amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64],
                gobject-introspection,
                intltool,
                gtk-doc-tools,
                libxml2-utils,
-               libnunit-cil-dev [amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64],
                dbus-test-runner,
                xvfb,
                valac,
                mate-common,
-               mono-devel (>= 2.4.3) [amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64],
                libglib2.0-dev (>= 2.35.4),
                libgtk-3-dev (>= 2.91.3),
                libgtk2.0-dev (>= 2.12.0),
-               python-gtk2-dev,
                procps,
-               gtk-sharp2-gapi [amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64],
-               libgtk2.0-cil-dev [amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64],
                libdbus-glib-1-dev (>= 0.82),
                libayatana-indicator-dev (>= 0.6.0-0~),
                libayatana-indicator3-dev (>= 0.6.0-0~),
@@ -39,23 +31,6 @@ Homepage: https://github.com/AyatanaIndicators/libayatana-appindicator
 Vcs-Git: https://github.com/AyatanaIndicators/libayatana-appindicator
 Vcs-Browser: https://github.com/AyatanaIndicators/libayatana-appindicator
 
-Package: python-ayatana-appindicator
-Section: python
-Architecture: any
-XB-Python-Version: ${python:Versions}
-Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         ${python:Depends},
-         libayatana-appindicator1 (= ${binary:Version}),
-         python-gobject,
-Provides: ${python:Provides},
-Description: Python bindings for libayatana-appindicator (GTK-2+ version)
- A library and indicator to take menus from applications and place them in
- the panel.
- .
- This package provides Python (v2) bindings against python-gtk2 so that
- you can use libayatana-appindicator from a Python program.
-
 Package: libayatana-appindicator1
 Architecture: any
 Depends: ${shlibs:Depends},
@@ -66,18 +41,6 @@ Description: Ayatana Application Indicators (GTK-2+ version)
  .
  This package contains shared libraries to be used by applications compiled
  against GTK-2+.
-
-Package: gir1.2-ayatanaappindicator-0.1
-Section: introspection
-Architecture: any
-Depends: ${misc:Depends},
-         ${gir:Depends},
-Description: Typelib files for libayatana-appindicator1 (GTK-2+ version)
- A library and indicator to take menus from applications and place them in
- the panel.
- .
- This package can be used by other packages using the GIRepository format
- to generate dynamic bindings (GTK-2+ version).
 
 Package: libayatana-appindicator-dev
 Section: libdevel
@@ -117,6 +80,18 @@ Description: Ayatana Application Indicators (GTK-3+ version)
  This package contains shared libraries to be used by applications compiled
  against GTK-3+.
 
+Package: gir1.2-ayatanaappindicator-0.1
+Section: introspection
+Architecture: any
+Depends: ${misc:Depends},
+         ${gir:Depends},
+Description: Typelib files for libayatana-appindicator1 (GTK-2+ version)
+ A library and indicator to take menus from applications and place them in
+ the panel.
+ .
+ This package can be used by other packages using the GIRepository format
+ to generate dynamic bindings (GTK-2+ version).
+
 Package: libayatana-appindicator3-dev
 Section: libdevel
 Architecture: any
@@ -146,27 +121,3 @@ Description: Typelib files for libayatana-appindicator3-1 (GTK-3+ version)
  This package can be used by other packages using the GIRepository format
  to generate dynamic bindings (GTK-3+ version).
 
-Package: libayatana-appindicator0.1-cil
-Section: cli-mono
-Architecture: amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64
-Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         ${cli:Depends},
-Description: CLI bindings for libayatana-appindicator
- This package provides the appindicator-sharp assembly that allows CLI (.NET)
- programs to take menus from applications and place them in the panel.
- .
- This package contains assemblies to be used by Mono applications.
-
-Package: libayatana-appindicator0.1-cil-dev
-Section: cli-mono
-Architecture: amd64 arm64 armel armhf i386 mipsel ppc64el s390x kfreebsd-amd64 kfreebsd-i386 powerpc ppc64
-Depends: ${shlibs:Depends},
-         ${misc:Depends},
-         ${cli:Depends},
-         libayatana-appindicator0.1-cil (= ${binary:Version}),
-Description: Ayatana Application Indicators for Mono
- A library and indicator to take menus from applications and place them in
- the panel.
- .
- This package contains files that are needed to build Mono applications.
