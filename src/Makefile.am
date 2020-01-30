@@ -57,7 +57,6 @@ libayatana_appindicatorinclude_HEADERS = \
 libayatana_appindicator_la_SOURCES = \
 	$(libayatana_appindicator_headers) \
 	app-indicator-enum-types.c \
-	app-indicator.c \
 	application-service-marshal.c \
 	dbus-shared.h \
 	generate-id.h \
@@ -66,6 +65,14 @@ libayatana_appindicator_la_SOURCES = \
 	gen-notification-item.xml.c \
 	gen-notification-watcher.xml.h \
 	gen-notification-watcher.xml.c
+
+if USE_GTK3
+libayatana_appindicator_la_SOURCES += \
+	app-indicator.c
+else
+libayatana_appindicator_la_SOURCES += \
+	app-indicator-gtk2.c
+endif
 
 libayatana_appindicator_la_LDFLAGS = \
 	$(COVERAGE_LDFLAGS) \
@@ -76,7 +83,7 @@ libayatana_appindicator_la_LDFLAGS = \
 libayatana_appindicator_la_CFLAGS = \
 	$(LIBRARY_CFLAGS) \
 	$(COVERAGE_CFLAGS) \
-	-Wall -Werror -Wno-error=deprecated-declarations \
+	-Wall -Wno-error=deprecated-declarations \
 	-DG_LOG_DOMAIN=\"libayatana-appindicator\"
 
 libayatana_appindicator_la_LIBADD = \
@@ -143,9 +150,15 @@ INTROSPECTION_COMPILER_ARGS = --includedir=$(builddir)
 
 if HAVE_INTROSPECTION
 
-introspection_sources = \
+if USE_GTK3
+ introspection_sources = \
 	$(addprefix $(srcdir)/,app-indicator.c) \
 	$(addprefix $(srcdir)/,$(libayatana_appindicator_headers))
+else
+ introspection_sources = \
+	$(addprefix $(srcdir)/,app-indicator-gtk2.c) \
+	$(addprefix $(srcdir)/,$(libayatana_appindicator_headers))
+endif
 
 AyatanaAppIndicator$(VER)-0.1.gir: libayatana-appindicator$(VER).la
 
@@ -158,7 +171,7 @@ AyatanaAppIndicator_0_1_gir_FILES = $(introspection_sources)
 # AyatanaAppIndicator_0_1_gir_NAMESPACE = AyatanaAppIndicator
 
 AyatanaAppIndicator3_0_1_gir_INCLUDES = $(AyatanaAppIndicator_0_1_gir_INCLUDES)
-AyatanaAyatanaAppIndicator3_0_1_gir_CFLAGS = $(AyatanaAyatanaAppIndicator_0_1_gir_CFLAGS)
+AyatanaAppIndicator3_0_1_gir_CFLAGS = $(AyatanaAppIndicator_0_1_gir_CFLAGS)
 AyatanaAppIndicator3_0_1_gir_LIBS = $(AyatanaAppIndicator_0_1_gir_LIBS)
 AyatanaAppIndicator3_0_1_gir_FILES = $(AyatanaAppIndicator_0_1_gir_FILES)
 # AyatanaAppIndicator3_0_1_gir_NAMESPACE = AyatanaAppIndicator

@@ -34,8 +34,6 @@ License version 3 and version 2.1 along with this program.  If not, see
 #define _GNU_SOURCE
 #include <stdlib.h>
 
-#include <gdk/gdk.h>
-
 #include <libdbusmenu-glib/menuitem.h>
 #include <libdbusmenu-glib/server.h>
 #include <libdbusmenu-gtk/client.h>
@@ -56,8 +54,6 @@ License version 3 and version 2.1 along with this program.  If not, see
 #include "generate-id.h"
 
 #define PANEL_ICON_SUFFIX  "panel"
-
-#define FALLBACK_ICON "image-missing"
 
 /**
  * AppIndicatorPrivate:
@@ -97,7 +93,7 @@ typedef struct {
 	gchar *               att_accessible_desc;
 	guint                 label_change_idle;
 
-	XAppStatusIcon *      status_icon;
+	GtkStatusIcon *       status_icon;
 	gint                  fallback_timer;
 
 	/* Fun stuff */
@@ -189,11 +185,14 @@ static void check_connect (AppIndicator * self);
 static void register_service_cb (GObject * obj, GAsyncResult * res, gpointer user_data);
 static void start_fallback_timer (AppIndicator * self, gboolean disable_timeout);
 static gboolean fallback_timer_expire (gpointer data);
-static XAppStatusIcon * fallback (AppIndicator * self);
+static GtkStatusIcon * fallback (AppIndicator * self);
 static void status_icon_status_wrapper (AppIndicator * self, const gchar * status, gpointer data);
-// static gboolean scroll_event_wrapper(GtkWidget *status_icon, GdkEventScroll *event, gpointer user_data);
+static gboolean scroll_event_wrapper(GtkWidget *status_icon, GdkEventScroll *event, gpointer user_data);
+static gboolean middle_click_wrapper(GtkWidget *status_icon, GdkEventButton *event, gpointer user_data);
 static void status_icon_changes (AppIndicator * self, gpointer data);
-static void unfallback (AppIndicator * self, XAppStatusIcon * status_icon);
+static void status_icon_activate (GtkStatusIcon * icon, gpointer data);
+static void status_icon_menu_activate (GtkStatusIcon *status_icon, guint button, guint activate_time, gpointer user_data);
+static void unfallback (AppIndicator * self, GtkStatusIcon * status_icon);
 static gchar * append_panel_icon_suffix (const gchar * icon_name);
 static gchar * get_real_theme_path (AppIndicator * self);
 static gchar * append_snap_prefix (const gchar * path);
@@ -953,10 +952,7 @@ app_indicator_set_property (GObject * object, guint prop_id, const GValue * valu
 
 		  if (g_strcmp0(oldlabel, priv->label) != 0) {
 		    signal_label_change(APP_INDICATOR(object));
-              if (priv->status_icon != NULL) {
-                xapp_status_icon_set_label (priv->status_icon, priv->label ? priv->label : "");
-              }
-          }
+		  }
 
 		  if (oldlabel != NULL) {
 		  	g_free(oldlabel);
@@ -987,16 +983,15 @@ app_indicator_set_property (GObject * object, guint prop_id, const GValue * valu
 				g_warning("Unable to send signal for NewTitle: %s", error->message);
 				g_error_free(error);
 			}
-
-            if (priv->status_icon != NULL) {
-              xapp_status_icon_set_tooltip_text (priv->status_icon, priv->title ? priv->title : "");
-            }
 		  }
 
 		  if (oldtitle != NULL) {
 		  	g_free(oldtitle);
 		  }
 
+		  if (priv->status_icon != NULL) {
+		  	gtk_status_icon_set_title(priv->status_icon, priv->title ? priv->title : "");
+		  }
 		  break;
 		}
 		case PROP_LABEL_GUIDE: {
@@ -1528,63 +1523,19 @@ theme_changed_cb (GtkIconTheme * theme, gpointer user_data)
 	return;
 }
 
-/* Handles the middle-click secondary action coming from XAppStatusIcon. */
-static void
-status_icon_menu_button_activate (XAppStatusIcon *status_icon,
-                                  guint button,
-                                  guint activate_time,
-                                  gpointer user_data)
-{
-    AppIndicator * self = (AppIndicator *)user_data;
-    AppIndicatorPrivate *priv = app_indicator_get_instance_private(self);
-
-    if (button == GDK_BUTTON_PRIMARY || button == GDK_BUTTON_MIDDLE) {
-        GtkWidget *menuitem = priv->sec_activate_target;
-
-        if (menuitem != NULL &&
-            gtk_widget_get_visible (menuitem) &&
-            gtk_widget_get_sensitive (menuitem))
-        {
-            gtk_widget_activate (menuitem);
-        }
-    }
-}
-
-static void
-status_icon_set_has_secondary_activate (XAppStatusIcon *icon,
-                                        gboolean        has)
-{
-    if (icon != NULL)
-    {
-        g_object_set_data (G_OBJECT (icon),
-                           "app-indicator-has-secondary-activate", GINT_TO_POINTER (has));
-    }
-}
-
 /* Creates a StatusIcon that can be used when the application
    indicator area isn't available. */
-static XAppStatusIcon *
+static GtkStatusIcon *
 fallback (AppIndicator * self)
 {
-    AppIndicatorPrivate *priv = app_indicator_get_instance_private(self);
+	GtkStatusIcon * icon = gtk_status_icon_new();
 
-	XAppStatusIcon * icon = xapp_status_icon_new();
-
-	xapp_status_icon_set_name(icon, app_indicator_get_id(self));
-
+	gtk_status_icon_set_name(icon, app_indicator_get_id(self));
 	const gchar * title = app_indicator_get_title(self);
 	if (title != NULL) {
-		xapp_status_icon_set_tooltip_text (icon, title);
+		gtk_status_icon_set_title(icon, title);
 	}
-
-    xapp_status_icon_set_label (icon, app_indicator_get_label (self));
-
-    /* Tell xapp-status-icon where this is coming from.  It will change the behavior
-     * of left clicks accordingly (to open the menu instead of some sort of 'activation') */
-    g_object_set_data (G_OBJECT (icon), "app-indicator", GINT_TO_POINTER (1));
-
-    status_icon_set_has_secondary_activate (icon, priv->sec_activate_enabled);
-
+	
 	g_signal_connect(G_OBJECT(self), APP_INDICATOR_SIGNAL_NEW_STATUS,
 		G_CALLBACK(status_icon_status_wrapper), icon);
 	g_signal_connect(G_OBJECT(self), APP_INDICATOR_SIGNAL_NEW_ICON,
@@ -1592,11 +1543,12 @@ fallback (AppIndicator * self)
 	g_signal_connect(G_OBJECT(self), APP_INDICATOR_SIGNAL_NEW_ATTENTION_ICON,
 		G_CALLBACK(status_icon_changes), icon);
 
-    xapp_status_icon_set_secondary_menu (icon, app_indicator_get_menu (self));
-
 	status_icon_changes(self, icon);
 
-	g_signal_connect(G_OBJECT(icon), "activate", G_CALLBACK(status_icon_menu_button_activate), self);
+	g_signal_connect(G_OBJECT(icon), "activate", G_CALLBACK(status_icon_activate), self);
+	g_signal_connect(G_OBJECT(icon), "popup-menu", G_CALLBACK(status_icon_menu_activate), self);
+	g_signal_connect(G_OBJECT(icon), "scroll-event", G_CALLBACK(scroll_event_wrapper), self);
+	g_signal_connect(G_OBJECT(icon), "button-release-event", G_CALLBACK(middle_click_wrapper), self);
 
 	return icon;
 }
@@ -1611,24 +1563,49 @@ status_icon_status_wrapper (AppIndicator * self, const gchar * status, gpointer 
 
 /* A wrapper for redirecting the scroll events to the app-indicator from status
    icon widget. */
+static gboolean
+scroll_event_wrapper (GtkWidget *status_icon, GdkEventScroll *event, gpointer data)
+{
+	g_return_val_if_fail(IS_APP_INDICATOR(data), FALSE);
+	AppIndicator * app = APP_INDICATOR(data);
+	g_signal_emit(app, signals[SCROLL_EVENT], 0, 1, event->direction);
 
-// TODO: need to implement scroll in xapp
-// static gboolean
-// scroll_event_wrapper (GtkWidget *status_icon, GdkEventScroll *event, gpointer data)
-// {
-// 	g_return_val_if_fail(IS_APP_INDICATOR(data), FALSE);
-// 	AppIndicator * app = APP_INDICATOR(data);
-// 	g_signal_emit(app, signals[SCROLL_EVENT], 0, 1, event->direction);
+	return TRUE;
+}
 
-// 	return TRUE;
-// }
+static gboolean
+middle_click_wrapper (GtkWidget *status_icon, GdkEventButton *event, gpointer data)
+{
+	g_return_val_if_fail(IS_APP_INDICATOR(data), FALSE);
+	AppIndicator * app = APP_INDICATOR(data);
+	AppIndicatorPrivate *priv = app_indicator_get_instance_private(app);
+
+	if (event->button == 2 && event->type == GDK_BUTTON_RELEASE) {
+		GtkAllocation alloc;
+		gint px = event->x;
+		gint py = event->y;
+		gtk_widget_get_allocation (status_icon, &alloc);
+		GtkWidget *menuitem = priv->sec_activate_target;
+
+		if (px >= 0 && px < alloc.width && py >= 0 && py < alloc.height &&
+		    priv->sec_activate_enabled && menuitem &&
+		    gtk_widget_get_visible (menuitem) &&
+		    gtk_widget_get_sensitive (menuitem))
+		{
+			gtk_widget_activate (menuitem);
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
 
 /* This tracks changes to either the status or the icons
    that are associated with the app indicator */
 static void
 status_icon_changes (AppIndicator * self, gpointer data)
 {
-	XAppStatusIcon * icon = XAPP_STATUS_ICON(data);
+	GtkStatusIcon * icon = GTK_STATUS_ICON(data);
 	AppIndicatorPrivate * priv = app_indicator_get_instance_private(self);
 
 	/* add the icon_theme_path once if needed */
@@ -1658,17 +1635,17 @@ status_icon_changes (AppIndicator * self, gpointer data)
 	switch (app_indicator_get_status(self)) {
 	case APP_INDICATOR_STATUS_PASSIVE:
 		/* hide first to avoid that the change is visible to the user */
-		xapp_status_icon_set_visible(icon, FALSE);
+		gtk_status_icon_set_visible(icon, FALSE);
 		icon_name = app_indicator_get_icon(self);
 		break;
 	case APP_INDICATOR_STATUS_ACTIVE:
 		icon_name = app_indicator_get_icon(self);
-		xapp_status_icon_set_visible(icon, TRUE);
+		gtk_status_icon_set_visible(icon, TRUE);
 		break;
 	case APP_INDICATOR_STATUS_ATTENTION:
 		/* get the _attention_ icon here */
 		icon_name = app_indicator_get_attention_icon(self);
-		xapp_status_icon_set_visible(icon, TRUE);
+		gtk_status_icon_set_visible(icon, TRUE);
 		break;
 	};
 
@@ -1676,45 +1653,16 @@ status_icon_changes (AppIndicator * self, gpointer data)
 		gchar *snapped_icon = append_snap_prefix(icon_name);
 
 		if (g_file_test(icon_name, G_FILE_TEST_EXISTS)) {
-			xapp_status_icon_set_icon_name(icon, icon_name);
+			gtk_status_icon_set_from_file(icon, icon_name);
 		} else if (snapped_icon && g_file_test(snapped_icon, G_FILE_TEST_EXISTS)) {
-			xapp_status_icon_set_icon_name(icon, snapped_icon);
+			gtk_status_icon_set_from_file(icon, snapped_icon);
 		} else {
 			gchar *longname = append_panel_icon_suffix(icon_name);
 
 			if (longname != NULL && gtk_icon_theme_has_icon (icon_theme, longname)) {
-				xapp_status_icon_set_icon_name(icon, longname);
+				gtk_status_icon_set_from_icon_name(icon, longname);
 			} else {
-                if (gtk_icon_theme_has_icon (icon_theme, icon_name)) {
-                    xapp_status_icon_set_icon_name(icon, icon_name);
-                } else {
-                    gint i;
-                    gchar *icon_path;
-
-                    const gchar *extensions[] = {
-                        "png",
-                        "svg",
-                    };
-
-                    for (i = 0; i < G_N_ELEMENTS (extensions); i++) {
-                        icon_path = g_strdup_printf ("%s/%s.%s", theme_path, icon_name, extensions[i]);
-
-                        if (g_file_test (icon_path, G_FILE_TEST_EXISTS)) {
-                            break;
-                        }
-
-                        g_clear_pointer (&icon_path, g_free);
-                    }
-
-                    if (icon_path) {
-                        xapp_status_icon_set_icon_name (icon, icon_path);
-                        g_free (icon_path);
-                    } else {
-                        // Should we do this??  Otherwise there's a blank (but reactive)
-                        // space in the panel
-                        xapp_status_icon_set_icon_name (icon, FALLBACK_ICON);
-                    }
-                }
+				gtk_status_icon_set_from_icon_name(icon, icon_name);
 			}
 
 			g_free(longname);
@@ -1726,16 +1674,44 @@ status_icon_changes (AppIndicator * self, gpointer data)
 	return;
 }
 
+/* Handles the activate action by the status icon by showing
+   the menu in a popup. */
+static void
+status_icon_activate (GtkStatusIcon * icon, gpointer data)
+{
+	GtkMenu * menu = app_indicator_get_menu(APP_INDICATOR(data));
+	if (menu == NULL)
+		return;
+
+	gtk_menu_popup(menu,
+	               NULL, /* Parent Menu */
+	               NULL, /* Parent item */
+	               gtk_status_icon_position_menu,
+	               icon,
+	               1, /* Button */
+	               gtk_get_current_event_time());
+
+	return;
+}
+
+/* Handles the right-click action by the status icon by showing
+   the menu in a popup. */
+static void
+status_icon_menu_activate (GtkStatusIcon *status_icon, guint button, guint activate_time, gpointer user_data)
+{
+	status_icon_activate(status_icon, user_data);
+}
+
 /* Removes the status icon as the application indicator area
    is now up and running again. */
 static void
-unfallback (AppIndicator * self, XAppStatusIcon * status_icon)
+unfallback (AppIndicator * self, GtkStatusIcon * status_icon)
 {
 	g_signal_handlers_disconnect_by_func(G_OBJECT(self), status_icon_status_wrapper, status_icon);
 	g_signal_handlers_disconnect_by_func(G_OBJECT(self), status_icon_changes, status_icon);
-	g_signal_handlers_disconnect_by_func(G_OBJECT(self), status_icon_menu_button_activate, status_icon);
-
-	xapp_status_icon_set_visible(status_icon, FALSE);
+	g_signal_handlers_disconnect_by_func(G_OBJECT(self), scroll_event_wrapper, status_icon);
+	g_signal_handlers_disconnect_by_func(G_OBJECT(self), middle_click_wrapper, status_icon);
+	gtk_status_icon_set_visible(status_icon, FALSE);
 	g_object_unref(G_OBJECT(status_icon));
 	return;
 }
@@ -1789,8 +1765,6 @@ sec_activate_target_parent_changed(GtkWidget *menuitem, GtkWidget *old_parent,
 	AppIndicator *self = APP_INDICATOR(data);
 	AppIndicatorPrivate * priv = app_indicator_get_instance_private(self);
 	priv->sec_activate_enabled = widget_is_menu_child(self, menuitem);
-    status_icon_set_has_secondary_activate (priv->status_icon, priv->sec_activate_enabled);
-
 }
 
 
@@ -2259,14 +2233,9 @@ app_indicator_set_menu (AppIndicator *self, GtkMenu *menu)
   priv->menu = GTK_WIDGET (menu);
   g_object_ref_sink (priv->menu);
 
-  if (priv->status_icon) {
-    xapp_status_icon_set_secondary_menu (priv->status_icon, menu);
-  }
-
   setup_dbusmenu (self);
 
   priv->sec_activate_enabled = widget_is_menu_child (self, priv->sec_activate_target);
-  status_icon_set_has_secondary_activate (priv->status_icon, priv->sec_activate_enabled);
 
   check_connect (self);
 
@@ -2322,7 +2291,6 @@ app_indicator_set_secondary_activate_target (AppIndicator *self, GtkWidget *menu
 		                                      self);
 		g_object_unref(G_OBJECT(priv->sec_activate_target));
 		priv->sec_activate_target = NULL;
-        status_icon_set_has_secondary_activate (priv->status_icon, FALSE);
 	}
 
 	if (menuitem == NULL) {
@@ -2333,7 +2301,6 @@ app_indicator_set_secondary_activate_target (AppIndicator *self, GtkWidget *menu
 
 	priv->sec_activate_target = (GtkWidget*)g_object_ref(G_OBJECT(menuitem));
 	priv->sec_activate_enabled = widget_is_menu_child(self, menuitem);
-    status_icon_set_has_secondary_activate (priv->status_icon, priv->sec_activate_enabled);
 	g_signal_connect(menuitem, "parent-set", G_CALLBACK(sec_activate_target_parent_changed), self);
 }
 

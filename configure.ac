@@ -60,7 +60,8 @@ AS_IF([test "x$with_gtk" = x3],
                                      glib-2.0 >= $GLIB_REQUIRED_VERSION
                                      gio-2.0 >= $GIO_REQUIRED_VERSION
                                      ayatana-indicator3-0.4 >= $INDICATOR_REQUIRED_VERSION
-                                     dbusmenu-gtk3-0.4 >= $DBUSMENUGTK_REQUIRED_VERSION)
+                                     dbusmenu-gtk3-0.4 >= $DBUSMENUGTK_REQUIRED_VERSION
+                                     xapp >= 1.6.0)
          AC_DEFINE(HAVE_GTK3, 1, [whether gtk3 is available])
         ],
       [test "x$with_gtk" = x2],
